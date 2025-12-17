@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>동양미래대 컴퓨터공학부 키오스크</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <style>
+        /* === 1. 기본 설정 === */
+        @import url("https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css");
+        
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Pretendard', sans-serif; user-select: none; -webkit-tap-highlight-color: transparent; }
+        
+        body {
+            background-color: #f0f2f5;
+            color: #333;
+            /* 모바일 브라우저 상단바 포함한 높이 계산 (100dvh) */
+            height: 100dvh; 
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden; /* 스크롤 원천 차단 */
+        }
+
+        /* === 2. 헤더 === */
+        header {
+            flex: 0 0 auto; /* 고정 높이 */
+            height: 80px;
+            background: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+            z-index: 10;
+        }
+        header h1 { 
+            font-size: 1.5rem; 
+            color: #0056b3; 
+            font-weight: 800; 
+            letter-spacing: -0.5px;
+        }
+
+        /* === 3. 메인 컨텐츠 (자동 비율 조정) === */
+        main {
+            flex: 1; /* 남은 공간 모두 차지 */
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px; /* 요소 간 간격 */
+            overflow: hidden; /* 내부 스크롤 방지 */
+        }
+
+        /* === 4. 참여 유도 버튼 (겹침 해결) === */
+        .quiz-btn {
+            background: linear-gradient(135deg, #6C5CE7, #a29bfe);
+            color: white;
+            border-radius: 20px;
+            padding: 25px;
+            box-shadow: 0 8px 15px rgba(108, 92, 231, 0.3);
+            cursor: pointer;
+            /* 중요: 높이를 화면 비율의 22%로 고정하되 최소/최대치 설정 */
+            flex: 0 0 22%; 
+            min-height: 140px;
+            display: flex;
+            align-items: center; /* 수직 중앙 정렬 */
+            justify-content: space-between; /* 양쪽 끝 정렬 */
+        }
+        
+        .quiz-left { flex: 1; margin-right: 10px; }
+        .quiz-left h2 { font-size: 1.6rem; margin-bottom: 8px; line-height: 1.2; font-weight: 700; word-break: keep-all; }
+        .quiz-left p { font-size: 0.95rem; opacity: 0.9; font-weight: 400; }
+
+        .quiz-right { 
+            flex: 0 0 auto; 
+            background: rgba(255,255,255,0.2); 
+            padding: 10px 15px; 
+            border-radius: 50px; 
+            font-weight: bold; 
+            font-size: 1.1rem;
+            display: flex; align-items: center; gap: 5px;
+        }
+
+        /* === 5. 학과 정보 리스트 (균등 분할) === */
+        .dept-list {
+            flex: 1; /* 남은 높이 모두 차지 */
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            min-height: 0; /* Flex 자식 요소가 부모보다 커지는 것 방지 */
+        }
+        
+        .card {
+            background: white;
+            border-radius: 18px;
+            padding: 0 20px; /* 좌우 패딩만 줌 */
+            display: flex;
+            align-items: center;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.03);
+            flex: 1; /* 3개 카드가 공간을 1:1:1로 나눔 */
+            cursor: pointer;
+            border-left: 10px solid #ddd;
+            transition: transform 0.1s;
+        }
+        .card:active { transform: scale(0.98); background: #f8f9fa; }
+
+        .card.web { border-color: #FF9F1C; }
+        .card.com { border-color: #2EC4B6; }
+        .card.ai { border-color: #E71D36; }
+
+        .card-icon { font-size: 2.5rem; margin-right: 15px; width: 50px; text-align: center; }
+        .card-text { flex: 1; overflow: hidden; } /* 텍스트 넘침 방지 */
+        .card-text h3 { font-size: 1.3rem; margin-bottom: 4px; color: #333; font-weight: 700; }
+        .card-text p { font-size: 0.9rem; color: #777; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+        /* === 6. 팝업 스타일 (모달 & 퀴즈) === */
+        #modal, #quiz-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.85); z-index: 200;
+            display: none; justify-content: center; align-items: center;
+            backdrop-filter: blur(5px);
+        }
+        
+        .modal-card {
+            background: white; width: 85%; max-height: 85%; 
+            border-radius: 25px; padding: 30px; 
+            display: flex; flex-direction: column; 
+            text-align: center; position: relative;
+            overflow-y: auto; /* 내용 길면 스크롤 */
+        }
+
+        /* 상세 정보 스타일 */
+        .modal-badge { font-size: 0.9rem; padding: 6px 12px; border-radius: 20px; color: white; display: inline-block; margin-bottom: 15px; align-self: center;}
+        .modal-title { font-size: 1.8rem; margin-bottom: 15px; font-weight: 800; }
+        .modal-desc { font-size: 1rem; color: #444; line-height: 1.6; margin-bottom: 20px; background: #f8f9fa; padding: 15px; border-radius: 12px; text-align: left; word-break: keep-all; }
+        
+        .club-section { text-align: left; margin-bottom: 20px; }
+        .club-title { font-size: 1rem; font-weight: bold; color: #333; margin-bottom: 8px; }
+        .club-tags { display: flex; flex-wrap: wrap; gap: 5px; }
+        .club-tags span { background: #eff6ff; color: #1d4ed8; padding: 6px 10px; border-radius: 8px; font-size: 0.85rem; font-weight: 600; }
+
+        .qr-area { margin-top: auto; padding: 15px; background: #f1f3f5; border-radius: 15px; }
+        #qr-code-container { width: 130px; height: 130px; background: white; margin: 10px auto; display: flex; align-items: center; justify-content: center; border-radius: 10px; }
+        #qr-code-container img { max-width: 100%; }
+
+        /* 퀴즈 스타일 */
+        #quiz-content-box { width: 90%; background: white; padding: 30px; border-radius: 20px; display: flex; flex-direction: column; height: 80%; }
+        .q-title { font-size: 1.6rem; font-weight: 800; margin-bottom: 30px; line-height: 1.3; text-align: center; }
+        .answer-btn { background: white; border: 2px solid #e9ecef; padding: 20px; border-radius: 15px; font-size: 1.1rem; margin-bottom: 10px; font-weight: 600; text-align: center; transition: 0.2s; }
+        .answer-btn:active { border-color: #6C5CE7; color: #6C5CE7; background: #f3f0ff; }
+        .progress-bar { height: 6px; background: #eee; border-radius: 3px; margin-bottom: 20px; overflow: hidden; }
+        .progress-fill { height: 100%; background: #6C5CE7; width: 0%; transition: width 0.3s; }
+
+        .close-btn { position: absolute; top: 15px; right: 15px; width: 40px; height: 40px; background: #eee; border:none; border-radius: 50%; font-size: 1.2rem; display: flex; align-items: center; justify-content: center;}
+
+        /* 화면보호기 */
+        #attract-screen {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(135deg, #004494, #002a5c); color: white;
+            z-index: 9999; display: flex; flex-direction: column;
+            justify-content: center; align-items: center; text-align: center;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="attract-screen" onclick="hideAttractScreen()">
+        <div style="font-size:2.5rem; font-weight:800; margin-bottom:10px;">동양미래대학교<br>컴퓨터공학부</div>
+        <div style="font-size:1.2rem; opacity:0.8;">화면을 터치하세요</div>
+    </div>
+
+    <header>
+        <h1>DONGYANG MIRAE UNIV.</h1>
+    </header>
+
+    <main>
+        <div class="quiz-btn" onclick="startQuiz()">
+            <div class="quiz-left">
+                <h2>나에게 딱 맞는<br>전공은?</h2>
+                <p>3가지 질문으로 알아보는 IT 적성</p>
+            </div>
+            <div class="quiz-right">
+                START ▶
+            </div>
+        </div>
+
+        <div class="dept-list">
+            <div class="card web" onclick="showDetail('web')">
+                <div class="card-icon">🌐</div>
+                <div class="card-text">
+                    <h3>웹응용소프트웨어공학과</h3>
+                    <p>눈에 보이는 웹/앱 서비스 개발</p>
+                </div>
+            </div>
+            <div class="card com" onclick="showDetail('com')">
+                <div class="card-icon">💻</div>
+                <div class="card-text">
+                    <h3>컴퓨터소프트웨어공학과</h3>
+                    <p>시스템 & 응용 프로그램 전문가</p>
+                </div>
+            </div>
+            <div class="card ai" onclick="showDetail('ai')">
+                <div class="card-icon">🤖</div>
+                <div class="card-text">
+                    <h3>인공지능소프트웨어학과</h3>
+                    <p>데이터 분석 & AI 모델링</p>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <div id="quiz-overlay">
+        <div id="quiz-content-box">
+            <div class="progress-bar"><div class="progress-fill" id="progress"></div></div>
+            <div style="flex:1; display:flex; flex-direction:column; justify-content:center;" id="question-container">
+                </div>
+            <button onclick="closeQuiz()" style="padding:15px; border:none; background:#eee; border-radius:10px; font-weight:bold; margin-top:10px;">나가기</button>
+        </div>
+    </div>
+
+    <div id="modal">
+        <div class="modal-card">
+            <button class="close-btn" onclick="closeModal()">✕</button>
+            <div id="modal-content-area"></div>
+        </div>
+    </div>
+
+    <script>
+        // 데이터
+        const deptData = {
+            'web': { name: "웹응용소프트웨어공학과", desc: "사용자가 눈으로 보고 사용하는 웹 사이트와 모바일 앱을 만듭니다. 디자인 감각과 프로그래밍 능력을 동시에 키웁니다.", clubs: ["ONE", "MARS"], color: "#FF9F1C", url: "https://www.dongyang.ac.kr/dmu/4561/subview.do" },
+            'com': { name: "컴퓨터소프트웨어공학과", desc: "컴퓨터 구조부터 다양한 응용 프로그램까지! 1988년부터 이어진 전통의 시스템 엔지니어 양성 학과입니다.", clubs: ["CAN", "EL", "MIT", "DASOM"], color: "#2EC4B6", url: "https://www.dongyang.ac.kr/dmu/4573/subview.do" },
+            'ai': { name: "인공지능소프트웨어학과", desc: "빅데이터를 분석하고 미래를 예측하는 AI 모델을 개발합니다. 최신 4차 산업 기술을 배웁니다.", clubs: ["AILab", "FLUFFY", "CarpeDM"], color: "#E71D36", url: "https://www.dongyang.ac.kr/dmu/4586/subview.do" }
+        };
+
+        const questions = [
+            { q: "가장 흥미로운 것은?", a: [{text:"홈페이지/앱 만들기", type:"web"}, {text:"복잡한 시스템 설계", type:"com"}, {text:"AI와 로봇 대화", type:"ai"}] },
+            { q: "나의 성향은?", a: [{text:"눈에 보이는 결과물 중요", type:"web"}, {text:"원리 파악과 논리 중요", type:"com"}, {text:"데이터 분석과 예측", type:"ai"}] },
+            { q: "희망 진로는?", a: [{text:"풀스택 개발자", type:"web"}, {text:"시스템 엔지니어", type:"com"}, {text:"AI 전문가", type:"ai"}] }
+        ];
+
+        let idleTimer, currentQIndex = 0, scores = { web: 0, com: 0, ai: 0 };
+
+        function resetIdleTimer() { clearTimeout(idleTimer); idleTimer = setTimeout(() => { location.reload(); }, 60000); }
+        document.body.addEventListener('click', resetIdleTimer); document.body.addEventListener('touchstart', resetIdleTimer);
+
+        function hideAttractScreen() { document.getElementById('attract-screen').style.display = 'none'; resetIdleTimer(); }
+
+        function showDetail(type) {
+            const data = deptData[type];
+            const contentArea = document.getElementById('modal-content-area');
+            contentArea.innerHTML = `
+                <span class="modal-badge" style="background:${data.color}">학과 소개</span>
+                <h2 class="modal-title" style="color:${data.color}">${data.name}</h2>
+                <div class="modal-desc">${data.desc}</div>
+                <div class="club-section"><div class="club-title">주요 동아리</div><div class="club-tags">${data.clubs.map(c => `<span>${c}</span>`).join('')}</div></div>
+                <div class="qr-area"><p>📱 자세한 정보 보기</p><div id="qr-code-container"></div></div>
+            `;
+            document.getElementById('modal').style.display = 'flex';
+            const qrContainer = document.getElementById("qr-code-container"); qrContainer.innerHTML = ""; 
+            new QRCode(qrContainer, { text: data.url, width: 120, height: 120 });
+        }
+        function closeModal() { document.getElementById('modal').style.display = 'none'; }
+
+        function startQuiz() { currentQIndex = 0; scores = { web: 0, com: 0, ai: 0 }; document.getElementById('quiz-overlay').style.display = 'flex'; renderQuestion(); }
+        function closeQuiz() { document.getElementById('quiz-overlay').style.display = 'none'; }
+        
+        function renderQuestion() {
+            const qData = questions[currentQIndex];
+            const container = document.getElementById('question-container');
+            document.getElementById('progress').style.width = `${((currentQIndex) / questions.length) * 100}%`;
+            container.innerHTML = `<div class="q-title">Q${currentQIndex + 1}.<br>${qData.q}</div>${qData.a.map(ans => `<div class="answer-btn" onclick="selectAnswer('${ans.type}')">${ans.text}</div>`).join('')}`;
+        }
+        
+        function selectAnswer(type) {
+            scores[type]++; currentQIndex++;
+            if (currentQIndex < questions.length) renderQuestion(); else showResult();
+        }
+
+        function showResult() {
+            let maxType = Object.keys(scores).reduce((a, b) => scores[a] > scores[b] ? a : b);
+            const data = deptData[maxType];
+            document.getElementById('progress').style.width = '100%';
+            document.getElementById('question-container').innerHTML = `
+                <div class="q-title" style="color:#0056b3; margin-bottom:10px;">결과 분석 완료!</div>
+                <div style="font-size:1.4rem; font-weight:bold; margin-bottom:20px;">${data.name}</div>
+                <div class="answer-btn" style="background:${data.color}; color:white; border:none;" onclick="showDetail('${maxType}'); closeQuiz();">상세 정보 보기</div>
+            `;
+        }
+        resetIdleTimer();
+    </script>
+</body>
+</html>
